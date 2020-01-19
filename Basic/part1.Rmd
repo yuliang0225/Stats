@@ -1,0 +1,916 @@
+---
+title: "R Notebook"
+output:
+  html_notebook: default
+  pdf_document: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r}
+library(MASS)
+library(ggplot2)
+library(GGally)
+library(modeest)
+library(moments)
+library(Hmisc)
+library(tigerstats)
+library(grDevices)
+library(reshape2)
+library(EnvStats)
+library(dplyr)
+library(scatterplot3d)
+library(psych)
+library(corrgram)
+library(ppcor)
+library(gtools)
+```
+
+## Basic plot
+### Histograms
+```{r}
+ggplot(Cars93, aes(x=Price)) + geom_histogram(binwidth=5, color = "black", fill = "white")
+```
+### Dot charts
+```{r}
+type.frame <- data.frame(table(Cars93$Type))
+colnames(type.frame)<- c("Type","Frequency")
+
+ggplot(type.frame, aes(x=Frequency,y=reorder(Type,Frequency))) + 
+  geom_point(size = 4) +
+  theme_bw() +
+  theme(panel.grid.major.x=element_blank(),
+        panel.grid.major.y=element_line(color = "black",linetype = "dotted")) +
+  labs(y="Type")
+ 
+```
+### Scatter plots
+```{r}
+ggplot(Cars93, aes(x = Horsepower,y = MPG.city,label = Cylinders)) +
+  geom_text()
+```
+
+###  Scatter plot matrix
+```{r}
+cars.subset <- subset(Cars93, select = c(MPG.city,Price, Horsepower,Cylinders))
+ggpairs(cars.subset)
+```
+### Box plots
+```{r}
+ggplot(Cars93, aes(x=Cylinders,y=Horsepower)) + 
+  geom_boxplot() +
+  geom_point() +
+  geom_jitter()
+```
+## Finding Your Center
+### Means
+```{r}
+heights <- c(36, 42, 43, 37, 40, 45)
+mean(heights)
+Horsepower.USA <- Cars93$Horsepower[Cars93$Origin == "USA"]
+mean(Horsepower.USA)
+Horsepower.NonUSA <- Cars93$Horsepower[Cars93$Origin == "non-USA"]
+mean(Horsepower.NonUSA)
+```
+
+```{r}
+with(Cars93, mean(Horsepower[Origin == "USA"]))
+with(Cars93, mean(Horsepower[Origin == "USA" & Cylinders ==4]))
+```
+### Exploring the data
+```{r}
+ggplot(Cars93, aes(x=Horsepower)) + 
+  geom_histogram(color="black", fill="white",binwidth = 10)+ 
+  facet_wrap(~Origin)
+```
+### Outliers: The flaw of averages
+```{r}
+mean(Horsepower.USA, trim =.05)
+
+```
+### Medians: Caught in the Middle
+```{r}
+scores <- c(1,2,2,2,3,4,4,4,5,6)
+median(scores)
+mfv(scores)
+```
+## Deviating from the Average
+```{r}
+with(Cars93, var(Horsepower[Origin == "USA"]))
+with(Cars93, length(Horsepower[Origin == "USA"]))
+```
+## Meeting Standards and Standings
+### Z score
+```{r}
+Horsepower.USA.Eight <- Cars93$Horsepower[Cars93$Origin == "USA" & Cars93$Cylinders == 8]
+Horsepower.USA.Eight
+scale(Horsepower.USA.Eight)
+rank(Horsepower.USA.Eight)
+```
+
+```{r}
+quantile(Horsepower.USA.Eight)
+quantile(Horsepower.USA.Eight, c(.54, .68, .91))
+fivenum(Horsepower.USA.Eight)
+summary(Horsepower.USA.Eight)
+```
+## Summarizing It All
+### min max others
+```{r}
+Horsepower.USA.Four <- Cars93$Horsepower[Cars93$Origin == "USA" & Cars93$Cylinders == 4]
+max(Horsepower.USA.Four)
+range(Horsepower.USA.Four)
+skewness(Horsepower.USA.Four)
+```
+```{r}
+ggplot(Cars93, aes(x=Horsepower)) + 
+  geom_histogram(color="black", fill="white",binwidth = 10)+ 
+  facet_wrap(~Origin)
+ggplot(Cars93, aes(x=Horsepower)) + 
+  geom_density() + 
+  facet_wrap(~Origin)
+```
+
+```{r}
+kurtosis(Horsepower.USA.Four)
+```
+
+```{r}
+car.types <-table(Cars93$Type)
+round(prop.table(car.types),2)
+margin.table(car.types)
+```
+
+```{r}
+prices <- hist(Cars93$Price, plot=F, breaks=5)
+prices
+```
+
+```{r}
+prices.matrix <- matrix(c(prices$mids,prices$counts), ncol = 2)
+prices.frame <- data.frame(prices.matrix)
+colnames(prices.frame) <- c("Price Midpoint (X $1,000)","Frequency")
+prices.frame
+```
+```{r}
+prices$counts
+cumsum(prices$counts)
+```
+
+```{r}
+price.q <-quantile(Cars93$Price)
+geom_vline(aes(xintercept=price.q),linetype = "dashed")
+ggplot(NULL, aes(x=Cars93$Price)) +
+  geom_step(stat="ecdf") +
+  labs(x= "Price X $1,000",y = "Fn(Price)") + 
+  geom_vline(aes(xintercept=price.q),linetype = "dashed")+
+  scale_x_continuous(breaks = price.q,labels = price.q)
+```
+```{r}
+rounded <- (round(sort(Cars93$Price),0))
+stem(Cars93$Price)
+```
+### Summarizing a Data Frame
+```{r}
+autos <- subset(Cars93, select = c(MPG.city,Type, Cylinders, Price, Horsepower))
+summary(autos)
+```
+
+```{r}
+datadensity(autos)
+```
+## Normal
+```{r}
+dnorm(100,m=100,s=15)
+```
+
+```{r}
+x.values <- seq(40,160,1)
+sd.values <- seq(40,160,15)
+zeros9 <- rep(0,9)
+
+ggplot(NULL,aes(x=x.values,y=dnorm(x.values,m=100,s=15))) + 
+  geom_line() +
+  labs(x="IQ",y="f(IQ)")+ 
+  scale_x_continuous(breaks=sd.values,labels = sd.values) +
+  geom_segment((aes(x=sd.values,y=zeros9,xend = sd.values,yend=dnorm(sd.values,m=100,s=15))),
+               linetype = "dashed")+ 
+  scale_y_continuous(expand = c(0,0))
+```
+```{r}
+pnorm(85,m=100,s=15)
+pnorm(85,m=100,s=15, lower.tail = FALSE)
+```
+```{r}
+pnormGC(c(85,100),region="between",m=100,s=15,graph=TRUE)
+```
+```{r}
+ggplot(NULL,aes(x=x.values,y=pnorm(x.values,m=100,s=15))) + 
+  geom_line() +
+  labs(x="IQ",y="Fn(IQ)")+ 
+  scale_x_continuous(breaks=sd.values,labels = sd.values) + 
+  geom_segment((aes(x=sd.values,y=zeros9,xend = sd.values,yend=pnorm(sd.values,mean=100,sd=15))), linetype = "dashed")+ 
+  scale_y_continuous(expand=c(0,0))
+```
+```{r}
+qnorm(0.1586553,m=100,s=15)
+qnorm(0.1586553,m=100,s=15, lower.tail = FALSE)
+qnormGC(.1586553, region = "below",m=100,s=15, graph=TRUE)
+```
+```{r}
+q.values <-round(qnorm(c(.25,.50,.75),m=100,s=15))
+zeros3 <- c(0,0,0)
+ggplot(NULL,aes(x=x.values,y=pnorm(x.values,m=100,s=15))) + 
+  geom_line() +
+  labs(x="IQ",y="Fn(IQ)")+ scale_x_continuous(breaks=q.values,labels = q.values) +
+  geom_segment((aes(x=q.values,y=zeros3,xend =q.values,yend=pnorm(q.values,mean=100,sd=15))), linetype = "dashed")+ 
+  scale_y_continuous(expand=c(0,0))
+```
+```{r}
+rnorm(5,m=100,s=15)
+```
+### The standard normal distribution in R
+```{r}
+dnorm(0)
+pnorm(0)
+qnorm(c(.25,.50,.75))
+rnorm(5)
+```
+
+```{r}
+pnormGC(c(-1,0),region="between")
+qnormGC(.50, region = "below")
+```
+```{r}
+z.values <-seq(-4,4,.01)
+z.sd.values <- seq(-4,4,1)
+
+ggplot(NULL,aes(x=z.values,y=dnorm(z.values))) +
+  geom_line() +
+  labs(x="z",y="f(z)")+ 
+  scale_x_continuous(breaks=z.sd.values,labels=z.sd.values) +
+  geom_segment((aes(x=z.sd.values,y=zeros9,xend =z.sd.values,yend=dnorm(z.sd.values))),linetype ="dashed")+
+  scale_y_continuous(expand=c(0,0))
+```
+## The Confidence Game:Estimation
+R provides dt() (density function), pt() (cumulative density function), qt() (quantile), and rt() (random number generation) for working with the t-distribution. For the confidence intervals, I use qt().
+```{r}
+mean.battery <- 60
+sd.battery <- 20
+N <- 25
+error <- qt(.025,N-1,lower.tail=FALSE)*sd.battery/sqrt(N) 
+lower <- mean.battery - error
+upper <- mean.battery + error
+lower
+upper
+```
+```{r}
+battery.data <- c(82,64,68,44,54,47,50,85,51,41,61,84, 53,83,91,43,35,36,33,87,90,86,49,37,48)
+t.test(battery.data, conf.level=.90)
+```
+
+## One-Sample Hypothesis Testing
+```{r}
+IQ.data <- c(100,101,104,109,125,116,105,108,110)
+z.test = function(x,mu,popvar){
+  one.tail.p <- NULL
+  z.score <- round((mean(x)-mu)/(popvar/sqrt(length(x))),3)
+  one.tail.p <- round(pnorm(abs(z.score),lower.tail= FALSE),3)
+  cat(" z =",z.score,"\n", 
+      "one-tailed probability =", one.tail.p,"\n", 
+      "two-tailed probability =", 2*one.tail.p )
+}
+
+z.test(IQ.data,100,15)
+```
+
+```{r}
+FarKlempt.data <- c(3,6,9,9,4,10,6,4,12)
+t.test(FarKlempt.data,mu=4, alternative="greater")
+```
+
+### Visualizing t-Distributions
+```{r}
+t.values <- seq(-4,4,.1)
+expression(infinity)
+
+plot(x = t.values,y = dt(t.values,3), type = "l", lty = "dotted", ylim = c(0,.4), xlab = "t", ylab = "f(t)")
+lines(t.values,dt(t.values,10),lty = "dashed")
+lines(t.values,dnorm(t.values))
+legend("topright", title = "df",
+       legend = c(expression(infinity),"10","3"), 
+       lty = c("solid","dashed","dotted"), 
+       bty = "n")
+
+```
+```{r}
+t.frame = data.frame(t.values,
+                     df3 = dt(t.values,3),
+                     df10 = dt(t.values,10),
+                     std_normal = dnorm(t.values))
+head(t.frame)
+```
+```{r}
+t.frame.melt <- melt(t.frame,id="t.values")
+colnames(t.frame.melt)= c("t","df","density")
+head(t.frame.melt)
+```
+```{r}
+x.axis.values <- seq(-4,4,2)
+ggplot(t.frame.melt, aes(x=t,y=density,group =df)) + 
+  geom_line(aes(linetype=df)) + 
+  scale_x_continuous(breaks = x.axis.values,labels =x.axis.values)+ 
+  scale_linetype_manual(values =c("dotted","dashed","solid"), labels = c("3","10", expression(infinity))) +
+  guides(linetype=guide_legend(reverse = TRUE))
+```
+### Testing a Variance
+```{r}
+FarKlempt.data2 <- c(12.43, 11.71, 14.41, 11.05, 9.53, 11.66, 9.33,11.71,14.35,13.81)
+varTest(FarKlempt.data2,alternative="greater",conf.level = 0.95,sigma.squared = 2.25)
+```
+
+As is the case for the distribution families I’ve discussed in this chapter, R pro- vides functions for working with the chi-square distribution family: 
+dchisq() (for the density function), 
+pchisq() (for the cumulative density function), 
+qchisq() (for quantiles), and 
+rchisq() (for random-number generation).
+```{r}
+qchisq(.05,df=9,lower.tail = FALSE)
+chisq.values <- seq(0,16,2)
+round(dchisq(chisq.values, 9),3)
+round(pchisq(chisq.values,9),3)
+round(rchisq(n=6,df=9),3)
+```
+```{r}
+chi.values <- seq(0,25,.1)
+
+ggplot(NULL, aes(x=chi.values))+ 
+  geom_line(aes(y=dchisq(chi.values,4))) + 
+  geom_line(aes(y=dchisq(chi.values,10))) + 
+  labs(x=expression(chi^2),y=expression(f(chi^2)))+ annotate(geom = "text",x=6,y=.15,label = "df=4")+
+  annotate(geom = "text",x=16,y=.07,label = "df=10")
+```
+## Two-Sample Hypothesis Testing
+```{r}
+sample1 <-c(100,118,97,92,118,125,136,95,111)
+sample2 <-c(91,109,83,88,115,108,127,102,86)
+
+z.test2 = function(x,y,popsd1,popsd2){
+  one.tail.p <- NULL
+  std.error <- sqrt((popsd1^2/length(x) + popsd2^2/length(y))) 
+  z.score <- round((mean(x)-mean(y))/std.error,3)
+  one.tail.p <- round(pnorm(abs(z.score),lower.tail = FALSE),3) 
+  cat(" mean1 =", mean(x)," ", "mean2 =", mean(y), "\n",
+      "standard error =", std.error, "\n",
+      "z =", z.score,"\n",
+      "one-tailed probability =", one.tail.p,"\n", 
+      "two-tailed probability =", 2*one.tail.p )}
+z.test2(sample1,sample2,15,15)
+```
+### t-Testing in R
+```{r}
+machine1 <-c(24.58, 22.09, 23.70, 18.89, 22.02, 28.71, 24.44, 20.91, 23.83, 20.83)
+machine2 <- c(21.61, 19.06, 20.72, 15.77, 19, 25.88, 21.48, 17.85, 20.86, 17.77)
+t.test(machine1,machine2,var.equal = TRUE, alternative="two.sided", mu=0)
+```
+
+```{r}
+prod.time <- c(machine1,machine2)
+machine <-c("machine1","machine2")
+machine <- rep(machine, times = c(10,10))
+FarKlempt.frame <-data.frame(machine,prod.time)
+with (FarKlempt.frame,t.test(prod.time~machine, var.equal = TRUE,alternative="two.sided", mu=0))
+```
+### Visualizing the results
+```{r}
+ggplot(FarKlempt.frame, aes(x=machine, y=prod.time))+ 
+  stat_boxplot(geom="errorbar", width =.5) + 
+  geom_boxplot()
+```
+```{r}
+machine.names <-c("machine1","machine2")
+mean.times <- c(mean(machine1),mean(machine2)) 
+se.times <- c(sd(machine1)/sqrt(length(machine1)),
+          sd(machine2)/sqrt(length(machine2)))
+FKmeans.frame <-data.frame(machine.names,mean.times,se.times)
+ggplot(FKmeans.frame, aes(x=machine.names, y=mean.times))+
+  geom_bar(stat="identity", width=.4,color="black", fill="white")+
+  geom_errorbar(aes(ymin=mean.times-se.times, ymax=mean.times+se.times),width=.1)
+```
+
+```{r}
+with (FarKlempt.frame,t.test(prod.time~machine, var.equal = FALSE,alternative="two.sided", mu=0))
+```
+### A Matched Set: Hypothesis Testing for Paired Samples
+```{r}
+before <-c(198,201,210,185,204,156,167,197,220,186) 
+after <- c(194,203,200,183,200,153,166,197,215,184)
+t.test(before,after,alternative = "greater",paired=TRUE)
+```
+### Testing Two Variances
+#### F-testing in R
+```{r}
+var.test(machine1,machine2,ratio=1,alternative="two.sided")
+```
+### Working with F-Distributions
+Just like the other distribution-families I cover earlier (normal, t, chi-square), R provides functions for dealing with F-distributions: 
+qf() gives quantile informa- tion, 
+df() provides the density function, 
+pf() provides the cumulative density function, and 
+rf() generates random numbers.
+```{r}
+qf(.025,9,14,lower.tail = FALSE)
+F.scores <-seq(0,5,1)
+round(df(F.scores,9,14),3)
+round(pf(F.scores,9,14),3)
+rf(5,9,14)
+```
+### Visualizing F-Distributions
+```{r}
+F.values <-seq(0,5,.05)
+F5.15 <- df(F.values,5,15)
+F10.20 <- df(F.values,10,20)
+F.frame <- data.frame(F.values,F5.15,F10.20)
+F.frame.melt <- melt(F.frame,id="F.values")
+colnames(F.frame.melt)=c("F","deg.fr","density")
+
+ggplot(F.frame.melt,aes(x=F,y=density,group=deg.fr)) + 
+  geom_line(stat="identity",aes(linetype=deg.fr))+ 
+  scale_linetype_manual(values = c("solid","dashed"), labels = c("5,15","10,20"))
+```
+## Testing More than Two Samples
+### ANOVA in R
+```{r}
+method1.scores <- c(95,91,89,90,99,88,96,98,95) 
+method2.scores <- c(83,89,85,89,81,89,90,82,84,80) 
+method3.scores <- c(68,75,79,74,75,81,73,77)
+Score <- c(method1.scores, method2.scores, method3.scores)
+Method <- rep(c("method1", "method2", "method3"), 
+              times=c(length(method1.scores),length(method2.scores), length(method3.scores)))
+Training.frame <- data.frame(Method,Score)
+analysis <-aov(Score ~ Method,data = Training.frame)
+summary(analysis)
+```
+
+```{r}
+ggplot(Training.frame, aes(x=Method, y=Score)) + 
+  stat_boxplot(geom="errorbar", width =.5) + 
+  geom_boxplot()
+```
+
+### After the ANOVA
+```{r}
+contrasts(Training.frame$Method) <- matrix(c(0,1,-1,2,-1,-1),3,2)
+Anova.w.Contrasts <-aov(Score ~ Method,data=Training.frame, contrasts = contrasts(Training.frame$Method))
+summary(Anova.w.Contrasts,split=list(Method=list("2 vs 3"= 1, "1 vs 2 & 3" = 2)))
+```
+
+```{r}
+TukeyHSD(analysis)
+```
+### Working with repeated measures ANOVA
+```{r}
+Person <-c("Al", "Bill", "Charlie", "Dan", "Ed", "Fred", "Gary","Harry","Irv","Jon")
+Before <- c(198,201,210,185,204,156,167,197,220,186) 
+OneMonth <- c(194,203,200,183,200,153,166,197,215,184) 
+TwoMonths <- c(191,200,192,180,195,150,167,195,209,179) 
+ThreeMonths <- c(188,196,188,178,191,145,166,192,205,175)
+Weight.frame <- data.frame(Person, Before, OneMonth, TwoMonths, ThreeMonths)
+Weight.frame
+```
+```{r}
+Weight.frame.melt <- melt(Weight.frame,id="Person")
+colnames(Weight.frame.melt) = c("Person","Time","Weight")
+ind.anova <- aov(Weight ~ Time, data=Weight.frame.melt)
+summary(ind.anova)
+```
+```{r}
+rm.anova <- aov(Weight ~ Time + Error(Person/Time), data = Weight.frame.melt)
+summary(rm.anova)
+```
+### Visualizing the results
+```{r}
+time <- c(0,1,2,3)
+mean.weight <- c(mean(Before),mean(OneMonth), mean(TwoMonths),mean(ThreeMonths))
+se.weight <- c(sd(Before), sd(OneMonth), sd(TwoMonths), sd(ThreeMonths))/sqrt(length(Person))
+wt.means.frame <- data.frame(time,mean.weight,se.weight)
+wt.means.frame
+
+ggplot(wt.means.frame,aes(x=time,y=mean.weight)) + 
+  geom_point(size=3)+ 
+  geom_errorbar(aes(ymin=mean.weight-se.weight,ymax=mean.weight+se.weight),width=.1)
+```
+### Trend Analysis in R
+```{r}
+contrasts(Weight.frame.melt$Time) <- matrix(c(-3,-1,1,3,1,-1, -1,1,-1,3,-3,1), 4, 3)
+rm.anova <- aov(Weight ~ Time + Error(factor(Person)/Time), 
+                data=Weight.frame.melt, 
+                contrasts = contrasts(Weight.frame.melt$Time))
+summary(rm.anova,split=list(Time=list("Linear" =1, "Quadratic"=2,"Cubic" =3)))
+```
+
+## More Complicated Testing
+### Two-Way ANOVA in R
+```{r}
+humorous <- c(57,56,60,64,33,25,28,31) 
+technical <- c(22,21,29,25,66,65,71,72)
+Score = c(humorous,technical)
+Method =rep(c("spoken","text"),each=4,2)
+Style =rep(c("humorous","technical"),each=8)
+pres.frame <-data.frame(Method,Style,Score)
+pres.frame
+two.way <- aov(Score ~ Style*Method, data = pres.frame)
+summary(two.way)
+```
+
+
+```{r}
+Score.spk.hum <- with(pres.frame, Score[Method=="spoken" & Style=="humorous"])
+Score.txt.hum <- with(pres.frame, Score[Method=="text" & Style=="humorous"])
+Score.spk.tec <- with(pres.frame, Score[Method=="spoken" & Style=="technical"])
+Score.txt.tec <- with(pres.frame, Score[Method=="text" & Style=="technical"])
+
+mean.Scores <- c(mean(Score.spk.hum), mean(Score.txt.hum), mean(Score.spk.tec), mean(Score.txt.tec))
+se.Scores <- c(sd(Score.spk.hum), sd(Score.txt.hum), sd(Score.spk.tec), sd(Score.txt.tec))/2
+
+mse.Method =rep(c("spoken","text"),2)
+mse.Style =rep(c("humorous","technical"),each=2)
+mse.frame <- data.frame(mse.Method,mse.Style,mean.Scores,se.Scores)
+colnames(mse.frame)=c("Method","Style","Mean","SE")
+mse.frame
+```
+```{r}
+ggplot(mse.frame,aes(x=Method,y=Mean,fill=Style)) + 
+  geom_bar(stat = "identity", position = "dodge", color = "black", width = .5)+
+  scale_fill_grey(start = 0,end = .8)+ 
+  geom_errorbar(aes(ymin=Mean,ymax=Mean+SE), width=.2, position=position_dodge(width=.5))
+```
+### Two Kinds of Variables . . . at Once
+```{r}
+BkScores <- c(48,55,46,61,40,43,45,53,38,45,44,53) 
+ErScores <- c(43,50,56,53,45,52,57,53,47,54,57,55)
+Score <-c(BkScores,ErScores)
+BkSubjects <- rep(c("Alice","Brad","Chris","Donna"),3) 
+ErSubjects <- rep(c("Eddie","Fran","Gil","Harriet"),3)
+Subject <- c(BkSubjects,ErSubjects)
+Medium <- rep(c("Book","E-reader"),each=12)
+Font <- rep(c("Haettenschweiler","Arial","Calibri"), each=4,2)
+mixed.frame <-data.frame(Medium,Font,Subject,Score)
+mixed.anova <- aov(Score ~ Medium*Font + Error(Subject/Font), data=mixed.frame)
+summary(mixed.anova)
+```
+### Visualizing the Mixed ANOVA results
+```{r}
+mse.frame <- mixed.frame %>%
+  group_by(Medium, Font) %>%
+  summarise(Mean = mean(Score), SE = sd(Score))
+
+ggplot(mse.frame, aes(x=Medium, y=Mean, fill=Font)) +
+  geom_bar(stat = "identity", position = "dodge",color="black",width = .5) + 
+  scale_fill_grey(start = 0,end = .8) + 
+  geom_errorbar(aes(ymin=Mean,ymax=Mean+SE),width=.2,position=position_dodge(width=.5))
+```
+### Multivariate Analysis of Variance
+
+
+## Regression: Linear, Multiple, and the General Linear Model
+### Linear Regression in R
+```{r}
+Aptitude <- c(45, 81, 65, 87, 68, 91, 77, 61, 55, 66, 82, 93, 76, 83, 61, 74)
+Performance <- c(56, 74, 56, 81, 75, 84, 68, 52, 57, 82, 73, 90, 67, 79, 70, 66)
+FarMisht.frame <- data.frame(Aptitude,Performance)
+ggplot(FarMisht.frame,aes(x=Aptitude,y=Performance)) + 
+  geom_point()+
+  geom_smooth(method=lm)
+```
+```{r}
+FM.reg <-lm(Performance ~ Aptitude, data=FarMisht.frame)
+summary(FM.reg)
+```
+
+``` {r}
+ggplot(FM.reg, aes(x=fitted(FM.reg), y=residuals(FM.reg)))+ 
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed" )
+```
+### Features of the linear model
+```{r}
+coefficients(FM.reg)
+confint(FM.reg)
+```
+### Making predictions
+```{r}
+predict(FM.reg,data.frame(Aptitude=c(85,62)))
+```
+### Juggling Many Relationships at Once: Multiple Regression
+```{r}
+Personality <- c(9, 15, 11, 15, 14, 19, 12, 10, 9, 14, 15, 14, 16, 18, 15, 12)
+FarMisht.frame["Personality"] = Personality
+FM.multreg <- lm(Performance ~ Aptitude + Personality, data = FarMisht.frame)
+summary(FM.multreg)
+```
+```{r}
+predict(FM.multreg, data.frame(Aptitude = c(85,62), Personality=c(14,17)))
+```
+```{r}
+with (FarMisht.frame, 
+      (
+        splot <- scatterplot3d(Performance ~ Aptitude + Personality, type = "h", pch = 19)),
+        splot$plane3d(FM.multreg,lty="dashed")
+)
+```
+
+### ANOVA: Another Look
+```{r}
+analysis <-aov(Score~Method,data = Training.frame)
+summary(analysis)
+```
+```{r}
+reg.analysis <-lm(Score~Method,data = Training.frame)
+summary(reg.analysis)
+```
+### Analysis of Covariance: The Final Component of the GLM
+```{r}
+anorexia["WtGain"]=anorexia["Postwt"]-anorexia["Prewt"]
+ggplot(anorexia,aes(x=Treat,y=WtGain))+ geom_point()
+```
+```{r}
+anorexia.linreg <-lm(WtGain ~ Treat, data=anorexia) 
+summary(anorexia.linreg)
+```
+```{r}
+with (anorexia, tapply(WtGain,Treat,mean))
+```
+```{r}
+anova(anorexia.linreg)
+```
+```{r}
+ggplot(anorexia, aes(x=Prewt,y=WtGain, shape = Treat)) + geom_point(size=2.5)
+```
+```{r}
+anorexia.T.and.P <- lm(WtGain ~ Treat + Prewt, data=anorexia)  
+summary(anorexia.T.and.P)
+```
+```{r}
+anova(anorexia.linreg,anorexia.T.and.P)
+```
+```{r}
+ggplot(anorexia, aes(x=Prewt,y=WtGain, shape = Treat)) + 
+  geom_point(size=2.5) +
+  geom_smooth(method = lm,se = FALSE, aes(linetype=Treat))
+```
+```{r}
+anorexia.w.interaction <- lm(WtGain ~ Treat + Prewt + Treat*Prewt, data=anorexia)
+anova(anorexia.T.and.P,anorexia.w.interaction)
+```
+
+## Correlation: The Rise and Fall of Relationships
+```{r}
+ggplot(anorexia, aes(x=Prewt,y=WtGain, shape = Treat)) + 
+  geom_point(size=2.5) +
+  geom_smooth(method = lm,se = FALSE, aes(linetype=Treat))
+```
+```{r}
+anorexia.w.interaction <- lm(WtGain ~ Treat + Prewt + Treat*Prewt, data=anorexia)
+anova(anorexia.T.and.P,anorexia.w.interaction)
+```
+
+```{r}
+model1 <- lm(WtGain ~ Treat + Prewt, data=anorexia)
+model2 <- lm(WtGain ~ Treat - Prewt, data=anorexia)
+model3 <- lm(WtGain ~ Treat + Prewt + Treat - Prewt , data=anorexia)
+anova(model1, model2)
+anova(model1, model3)
+```
+```{r}
+summary(model1)
+summary(model2)
+summary(model3)
+```
+```{r}
+ggplot(anorexia, aes(x=Prewt,y=WtGain, shape = Treat)) + geom_point(size=2.5)
+```
+```{r}
+anorexia.T.and.P <- lm(WtGain ~ Treat + Prewt, data=anorexia)
+summary(anorexia.T.and.P)
+```
+```{r}
+anova(anorexia.linreg,anorexia.T.and.P)
+```
+
+### Testing Hypotheses About Correlation
+```{r}
+Aptitude <- c(45, 81, 65, 87, 68, 91, 77, 61, 55, 66, 82, 93, 76, 83, 61, 74)
+Performance <- c(56, 74, 56, 81, 75, 84, 68, 52, 57, 82, 73, 90, 67, 79, 70, 66)
+Personality <- c(9, 15, 11, 15, 14, 19, 12, 10, 9, 14, 15, 14, 16, 18, 15, 12)
+FarMisht.frame <- data.frame(Aptitude, Performance, Personality)
+with(FarMisht.frame, cor(Aptitude,Performance))
+cor(FarMisht.frame, method = "pearson")
+with(FarMisht.frame, cor.test(Aptitude,Performance, alternative = "greater"))
+```
+```{r}
+r.test(r12=.783, n=16, r34=.695, n2=20)
+```
+```{r}
+ggpairs(FarMisht.frame)
+```
+### Multiple correlation in R
+```{r}
+FarMisht.multreg <- lm(Performance ~ Aptitude + Personality, data = FarMisht.frame)
+summary(FarMisht.multreg)
+```
+### Partial Correlation
+```{r}
+with (FarMisht.frame, pcor.test(x=Performance, y=Aptitude, z=Personality))
+```
+```{r}
+pcor(FarMisht.frame)
+```
+### Semipartial Correlation
+```{r}
+with (FarMisht.frame, spcor.test(x=Performance, y=Aptitude, z=Personality))
+```
+```{r}
+spcor(FarMisht.frame)
+```
+## Curvilinear Regression: When Relationships Get Complicated
+```{r}
+head(Animals)
+Animals.living <- Animals[-c(6,16,26),]
+```
+```{r}
+ggplot(Animals.living, aes(x=body, y=brain))+ geom_point()
+```
+```{r}
+ggplot(Animals.living, aes(x=log(body), y=log(brain)))+ 
+  geom_point()+ 
+  geom_text(aes(label=rownames(Animals.living)))
+```
+```{r}
+ggplot(Animals.living, aes(x=log(body), y=log(brain)))+ 
+  geom_point()+
+  geom_smooth(method = "lm",se=FALSE)
+```
+```{r}
+powerfit <- lm(log(brain) ~ log(body), data = Animals.living)
+summary(powerfit)
+```
+```{r}
+ggplot(Animals.living, aes(x=body, y=brain))+ 
+  geom_point()+ 
+  geom_line(aes(y=exp(powerfit$fitted.values)))
+```
+```{r}
+seconds.after.pour <- c(seq(0,120,15), seq(150,240,30), c(300,360))
+head.cm <- c(17, 16.1, 14.9, 14, 13.2, 12.5, 11.9, 11.2, 10.7, 9.7, 8.9, 8.3, 7.5, 6.3, 5.2)
+beer.head <- data.frame(seconds.after.pour,head.cm)
+ggplot(beer.head, aes(x= seconds.after.pour,y=log(head.cm)))+
+  geom_point()+ 
+  geom_smooth(method="lm",se=FALSE)
+```
+```{r}
+expfit <- lm(log(head.cm) ~ seconds.after.pour, data = beer.head)
+summary(expfit)
+```
+```{r}
+ggplot(beer.head, aes(x= seconds.after.pour,y=head.cm))+ 
+  geom_point()+ 
+  geom_line(aes(y=exp(expfit$fitted.values)))
+```
+```{r}
+ggplot(Cars93, aes(x=log(Horsepower),y=MPG.highway))+ 
+  geom_point()+
+  geom_smooth(method="lm",se=FALSE)
+```
+```{r}
+logfit <- lm(MPG.highway ~ log(Horsepower), data=Cars93)
+summary(logfit)
+```
+```{r}
+ggplot(Cars93, aes(x=Horsepower,y=MPG.highway))+ 
+  geom_point()+ 
+  geom_line(aes(y=logfit$fitted.values))
+```
+### Polynomial Regression: A Higher Power
+```{r}
+ggplot(Boston, aes(x=rm,y=medv))+ 
+  geom_point()+ 
+  geom_smooth(method=lm, se=FALSE)
+```
+```{r}
+linfit <- lm(medv ~ rm, data=Boston)
+summary(linfit)
+```
+```{r}
+rm2 <- Boston$rm^2
+polyfit2 <-lm(medv ~ rm + rm2, data=Boston)
+summary(polyfit2)
+```
+```{r}
+anova(linfit,polyfit2)
+```
+```{r}
+ggplot(Boston, aes(x=rm,y=medv))+ 
+  geom_point()+ 
+  geom_line(aes(y=polyfit2$fitted.values))
+```
+## Introducing Probability
+```{r}
+factorial(6)
+choose(8,4)
+```
+```{r}
+Marx.Bros <- c("Groucho","Chico","Harpo","Zeppo")
+combn(Marx.Bros,2)
+```
+```{r}
+combinations(4,2,v=Marx.Bros)
+```
+```{r}
+permutations(4,2,v=Marx.Bros)
+```
+### Binomial distribution
+As is the case for other built-in distributions, R provides these functions for the binomial distribution: dbinom() (density function), 
+pbinom() (cumulative distribution function), 
+qbinom() (quantiles), and 
+rbinom() (random number generation).
+```{r}
+successes <- seq(0,10)
+probability <- dbinom(successes,10,1/6)
+ggplot(NULL,aes(x=successes,y=probability))+ 
+  geom_bar(stat="identity",width=1,color="white")
+```
+```{r}
+cumulative <-pbinom(successes,10,1/6)
+ggplot(NULL,aes(x=successes,y=cumulative))+ geom_step()
+```
+### Negative binomial distribution
+For the negative binomial functions, 
+dnbinom() provides the density function, 
+pnbinom() gives you the cumulative distribution function, 
+qnbinom() gives quan- tile information, and 
+rnbinom() produces random numbers.
+```{r}
+dnbinom(5,4,1/6)
+pnbinom(5,4,1/6)
+sum(dnbinom(seq(0,5),4,1/6))
+qnbinom(seq(.10,.95,.05),4,1/6)
+rnbinom(5, 4, 1/6)
+```
+### Hypothesis Testing with the Binomial Distribution
+```{r}
+binom.test(5,10,1/6, alternative="greater")
+```
+```{r}
+binom.test(550,1000,.5,alternative="two.sided")
+```
+## Introducing Modeling
+### Modeling with the Poisson distribution
+```{r}
+x.values <- seq(0,7)
+dpois(x.values,3)
+```
+```{r}
+ggplot(NULL,aes(x=x.values,y=dpois(x.values,3)))+ 
+  geom_bar(stat="identity",width=.5)+ 
+  scale_x_continuous(breaks=seq(0,7))
+```
+```{r}
+Predicted <- dpois(x.values,3)*200
+Observed <- c(10,30,44,44,36,18,10,8)
+Category <-c(rep("Observed",8),rep("Predicted",8)) 
+Hits.Hr <- c(x.values,x.values)
+Hours <- c(Observed,Predicted)
+FBJ.frame <-data.frame(Category,Hits.Hr,Hours)
+FBJ.frame
+```
+
+```{r}
+ggplot(FBJ.frame,aes(x=Hits.Hr,y=Hours,fill=Category))+
+  geom_bar(stat="identity", position="dodge", color="black",width=.6)+ 
+  scale_x_continuous(breaks=x.values)+ 
+  scale_fill_grey()+
+  theme_bw()
+```
+```{r}
+chi.squared <- sum(((Observed-Predicted)^2)/Predicted)
+# df = k-m-1
+pchisq(chi.squared,6,lower.tail = FALSE)
+chisq.test(Observed,p=dpois(x.values,3),rescale.p=TRUE)
+sum(dpois(x.values,3))
+```
+```{r}
+chisq.test(c(65,35), p=c(.5,.5))
+```
+```{r}
+
+```
+
